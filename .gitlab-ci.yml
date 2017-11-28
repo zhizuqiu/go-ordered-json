@@ -1,0 +1,6 @@
+image: golang:1.9
+
+test-project:
+  stage: test
+  script:
+    - go test -v
