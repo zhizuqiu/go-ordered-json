@@ -1,6 +1,8 @@
 JSON object parsing with preserving keys order
 =============================================
 
+![coverage](https://gitlab.com/c0b/go-ordered-json/badges/master/coverage.svg)
+
 Refers
 
 1. JSON and Go        https://blog.golang.org/json-and-go
@@ -10,6 +12,6 @@ Refers
 3. Python OrderedDict https://github.com/python/cpython/blob/2.7/Lib/collections.py#L38
    the Python's OrderedDict uses a double linked list internally, maintain a consistent public interface with `dict`
 
-NOTICE:
+Disclaimer:
 
-same as Go's default map, this OrderedMap does not support concurrent access, if want to use in multiple goroutines concurrently, should use sync.\*Mutex to protect.
+same as Go's default [map](https://blog.golang.org/go-maps-in-action), this OrderedMap is not safe for concurrent use, if need atomic access, may use a sync.Mutex to synchronize.

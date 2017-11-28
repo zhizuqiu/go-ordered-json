@@ -3,79 +3,121 @@
 // but sometimes when working with particular third-party proprietary code
 // which has incorrect using the keys order, we have to maintain the object keys
 // in the same order of incoming JSON object, this package is useful for these cases.
+//
+// Disclaimer:
+// same as Go's default [map](https://blog.golang.org/go-maps-in-action),
+// this OrderedMap is not safe for concurrent use, if need atomic access, may use a sync.Mutex to synchronize.
 package ordered
 
 // Refers
 //  JSON and Go        https://blog.golang.org/json-and-go
 //  Go-Ordered-JSON    https://github.com/virtuald/go-ordered-json
 //  Python OrderedDict https://github.com/python/cpython/blob/2.7/Lib/collections.py#L38
+//  port OrderedDict   https://github.com/cevaris/ordered_map
 
 import (
 	"bytes"
+	"container/list"
 	"encoding/json"
 	"fmt"
 	"io"
 )
 
+// the key-value pair type, for initializing from a list of key-value pairs, or for looping entries in the same order
+type KVPair struct {
+	Key   string
+	Value interface{}
+}
+
 type m map[string]interface{}
 
+// the OrderedMap type, has similar operations as the default map, but maintained
+// the keys order of inserted; similar to map, all single key operations (Get/Set/Delete) runs at O(1).
 type OrderedMap struct {
 	m
-	keys []string
+	l    *list.List
+	keys map[string]*list.Element // the double linked list for delete and lookup to be O(1)
 }
 
+// Create a new OrderedMap
 func NewOrderedMap() *OrderedMap {
-	return &OrderedMap{m: make(m)}
+	return &OrderedMap{
+		m:    make(map[string]interface{}),
+		l:    list.New(),
+		keys: make(map[string]*list.Element),
+	}
 }
 
-func (om *OrderedMap) Keys() []string { return om.keys }
+// Create a new OrderedMap and populate from a list of key-value pairs
+func NewOrderedMapFromKVPairs(pairs []*KVPair) *OrderedMap {
+	om := NewOrderedMap()
+	for _, pair := range pairs {
+		om.Set(pair.Key, pair.Value)
+	}
+	return om
+}
+
+// return all keys
+// func (om *OrderedMap) Keys() []string { return om.keys }
+
+// set value for particular key, this will remember the order of keys inserted
+// but if the key already exists, the order is not updated.
 func (om *OrderedMap) Set(key string, value interface{}) {
 	if _, ok := om.m[key]; !ok {
-		om.keys = append(om.keys, key)
+		om.keys[key] = om.l.PushBack(key)
 	}
 	om.m[key] = value
 }
 
-// Get value for particular key, or nil if the key does not exist
+// Get value for particular key, the boolean ok indicates if the key exist or not.
 func (om *OrderedMap) Get(key string) (value interface{}, ok bool) {
 	value, ok = om.m[key]
 	return
 }
 
-// TODO: delete is not efficient unless implement a DoubleLL
 // deletes the element with the specified key (m[key]) from the map. If there is no such element, this is a no-op.
-func (om *OrderedMap) Delete(key string) {
-	if _, ok := om.m[key]; ok {
-		// delete from om.keys
+func (om *OrderedMap) Delete(key string) (value interface{}, ok bool) {
+	value, ok = om.m[key]
+	if ok {
+		om.l.Remove(om.keys[key])
+		delete(om.keys, key)
+		delete(om.m, key)
 	}
-	// delete(om.m, key)
+	return
 }
 
 // Iterate all key/value pairs in the same order of object constructed
-func (om *OrderedMap) Entries() <-chan struct {
-	Key   string
-	Value interface{}
-} {
-	res := make(chan struct {
-		Key   string
-		Value interface{}
-	})
-	go func() {
-		for _, key := range om.keys {
-			res <- struct {
-				Key   string
-				Value interface{}
-			}{key, om.m[key]}
+func (om *OrderedMap) EntriesIter() func() (*KVPair, bool) {
+	e := om.l.Front()
+	return func() (*KVPair, bool) {
+		if e != nil {
+			key := e.Value.(string)
+			e = e.Next()
+			return &KVPair{key, om.m[key]}, true
 		}
-		close(res)
-	}()
-	return res
+		return nil, false
+	}
 }
 
-// this implements type json.Marshaler, so can be called in json.Marshal(om)
+// Iterate all key/value pairs in the reverse order of object constructed
+func (om *OrderedMap) EntriesReverseIter() func() (*KVPair, bool) {
+	e := om.l.Back()
+	return func() (*KVPair, bool) {
+		if e != nil {
+			key := e.Value.(string)
+			e = e.Prev()
+			return &KVPair{key, om.m[key]}, true
+		}
+		return nil, false
+	}
+}
+
+// this implements type json.Marshaler interface, so can be called in json.Marshal(om)
 func (om *OrderedMap) MarshalJSON() (res []byte, err error) {
 	res = append(res, '{')
-	for i, k := range om.keys {
+	front, back := om.l.Front(), om.l.Back()
+	for e := front; e != nil; e = e.Next() {
+		k := e.Value.(string)
 		res = append(res, fmt.Sprintf("%q:", k)...)
 		var b []byte
 		b, err = json.Marshal(om.m[k])
@@ -83,7 +125,7 @@ func (om *OrderedMap) MarshalJSON() (res []byte, err error) {
 			return
 		}
 		res = append(res, b...)
-		if i < len(om.keys)-1 {
+		if e != back {
 			res = append(res, ',')
 		}
 	}
@@ -92,7 +134,7 @@ func (om *OrderedMap) MarshalJSON() (res []byte, err error) {
 	return
 }
 
-// this implements type json.Unmarshaler, so can be called in json.Marshal(data, om)
+// this implements type json.Unmarshaler interface, so can be called in json.Unmarshal(data, om)
 func (om *OrderedMap) UnmarshalJSON(data []byte) error {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
@@ -106,7 +148,10 @@ func (om *OrderedMap) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("expect JSON object open with '{'")
 	}
 
-	om.parseobject(dec)
+	err = om.parseobject(dec)
+	if err != nil {
+		return err
+	}
 
 	t, err = dec.Token()
 	if err != io.EOF {
@@ -141,7 +186,9 @@ func (om *OrderedMap) parseobject(dec *json.Decoder) (err error) {
 		if err != nil {
 			return err
 		}
-		om.keys = append(om.keys, key)
+
+		// om.keys = append(om.keys, key)
+		om.keys[key] = om.l.PushBack(key)
 		om.m[key] = value
 	}
 
