@@ -69,8 +69,19 @@ func (om *OrderedMap) Set(key string, value interface{}) {
 	om.m[key] = value
 }
 
-// Get value for particular key, the boolean ok indicates if the key exist or not.
-func (om *OrderedMap) Get(key string) (value interface{}, ok bool) {
+// Check if value exists
+func (om *OrderedMap) Has(key string) bool {
+	_, ok := om.m[key]
+	return ok
+}
+
+// Get value for particular key, or nil if not exist; but don't rely on nil for non-exist; should check by Has or GetValue
+func (om *OrderedMap) Get(key string) interface{} {
+	return om.m[key]
+}
+
+// Get value and exists together
+func (om *OrderedMap) GetValue(key string) (value interface{}, ok bool) {
 	value, ok = om.m[key]
 	return
 }

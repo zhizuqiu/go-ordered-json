@@ -153,8 +153,8 @@ func TestUnmarshalOrderedMapFromInvalid(t *testing.T) {
 
 func TestUnmarshalOrderedMap(t *testing.T) {
 	var (
-		data = []byte(`{"as":"AS15169 Google Inc.","city":"Mountain View","country":"United States","countryCode":"US","isp":"Google Cloud","lat":37.4192,"lon":-122.0574,"org":"Google Cloud","query":"35.192.25.53","region":"CA","regionName":"California","status":"success","timezone":"America/Los_Angeles","zip":"94043"}`)
-		obj  = NewOrderedMapFromKVPairs([]*KVPair{
+		data  = []byte(`{"as":"AS15169 Google Inc.","city":"Mountain View","country":"United States","countryCode":"US","isp":"Google Cloud","lat":37.4192,"lon":-122.0574,"org":"Google Cloud","query":"35.192.25.53","region":"CA","regionName":"California","status":"success","timezone":"America/Los_Angeles","zip":"94043"}`)
+		pairs = []*KVPair{
 			{"as", "AS15169 Google Inc."},
 			{"city", "Mountain View"},
 			{"country", "United States"},
@@ -169,7 +169,8 @@ func TestUnmarshalOrderedMap(t *testing.T) {
 			{"status", "success"},
 			{"timezone", "America/Los_Angeles"},
 			{"zip", "94043"},
-		})
+		}
+		obj = NewOrderedMapFromKVPairs(pairs)
 	)
 
 	om := NewOrderedMap()
@@ -180,9 +181,19 @@ func TestUnmarshalOrderedMap(t *testing.T) {
 
 	// fix number type for deepequal test
 	for _, key := range []string{"lat", "lon"} {
-		num, _ := om.Get(key)
-		numf, _ := num.(json.Number).Float64()
+		numf, _ := om.Get(key).(json.Number).Float64()
 		om.Set(key, numf)
+	}
+
+	// check by Has and GetValue
+	for _, kv := range pairs {
+		if !om.Has(kv.Key) {
+			t.Fatalf("expect key %q exists in Unmarshaled OrderedMap")
+		}
+		value, ok := om.GetValue(kv.Key)
+		if !ok || value != kv.Value {
+			t.Fatalf("expect for key %q: the value %v should equal to %v, in Unmarshaled OrderedMap", kv.Key, value, kv.Value)
+		}
 	}
 
 	b, err := json.MarshalIndent(om, "", "  ")
@@ -266,8 +277,7 @@ func TestUnmarshalNestedOrderedMap(t *testing.T) {
 	// fmt.Println(om, string(b), err, obj)
 
 	// fix number type for deepequal test
-	ele, _ := om.Get("b")
-	elearr := ele.([]interface{})
+	elearr := om.Get("b").([]interface{})
 	for i, v := range elearr {
 		if num, ok := v.(json.Number); ok {
 			numi, _ := num.Int64()
