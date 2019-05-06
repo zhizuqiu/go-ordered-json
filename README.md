@@ -3,6 +3,17 @@ JSON object parsing with preserving keys order
 
 ![coverage](https://gitlab.com/c0b/go-ordered-json/badges/master/coverage.svg)
 
+Forked from [go-ordered-json](https://gitlab.com/c0b/go-ordered-json)
+
+add function:
+
+- func (om *OrderedMap) GetJson(key string) string
+- func (om *OrderedMap) GetJsonValue(key string) (string, bool)
+- func (om *OrderedMap) GetJsonByte(key string) []byte
+- func (om *OrderedMap) GetJsonByteValue(key string) ([]byte, bool)
+- func (om *OrderedMap) GetMap(key string) map[string]interface{}
+- func (om *OrderedMap) GetMapValue(key string) (map[string]interface{}, bool)
+
 Refers
 
 1. JSON and Go        https://blog.golang.org/json-and-go

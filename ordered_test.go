@@ -444,3 +444,33 @@ func noSpace(c rune) rune {
 func isSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\r' || c == '\n'
 }
+
+func TestOrigin(t *testing.T) {
+	str := `
+{
+  "country": "United States",
+  "region": "CA",
+  "countryCode": "US",
+  "properties": {
+    "cpus": {
+      "description": "description",
+      "title": "ddd",
+      "type": "number",
+	  "default": 1
+    }
+  }
+}
+`
+	var om = NewOrderedMap()
+	err := json.Unmarshal([]byte(str), om)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+
+	fmt.Println(om.GetJson("properties"))
+	fmt.Println(om.GetJsonValue("properties"))
+	fmt.Println(om.GetJsonByte("properties"))
+	fmt.Println(om.GetJsonByteValue("properties"))
+	fmt.Println(om.GetMap("properties"))
+	fmt.Println(om.GetMapValue("properties"))
+}

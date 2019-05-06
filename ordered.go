@@ -86,6 +86,79 @@ func (om *OrderedMap) GetValue(key string) (value interface{}, ok bool) {
 	return
 }
 
+// Get json value for particular key, or nil if not exist; but don't rely on nil for non-exist; should check by Has or GetValue
+func (om *OrderedMap) GetJson(key string) string {
+	jsonByte, err := json.Marshal(om.m[key])
+	if err != nil {
+		fmt.Println(err)
+		return ""
+	}
+	return string(jsonByte)
+}
+
+// Get json value and exists together
+func (om *OrderedMap) GetJsonValue(key string) (string, bool) {
+	value, ok := om.m[key]
+	if !ok {
+		return "", ok
+	}
+	jsonByte, err := json.Marshal(value)
+	if err != nil {
+		fmt.Println(err)
+		return "", ok
+	}
+	return string(jsonByte), ok
+}
+
+// Get json byte value for particular key, or nil if not exist; but don't rely on nil for non-exist; should check by Has or GetValue
+func (om *OrderedMap) GetJsonByte(key string) []byte {
+	jsonByte, err := json.Marshal(om.m[key])
+	if err != nil {
+		fmt.Println(err)
+		return []byte("")
+	}
+	return jsonByte
+}
+
+// Get json byte value and exists together
+func (om *OrderedMap) GetJsonByteValue(key string) ([]byte, bool) {
+	value, ok := om.m[key]
+	if !ok {
+		return nil, ok
+	}
+	jsonByte, err := json.Marshal(value)
+	if err != nil {
+		fmt.Println(err)
+		return []byte(""), ok
+	}
+	return jsonByte, ok
+}
+
+// Get map[string]interface{} value for particular key, or nil if not exist; but don't rely on nil for non-exist; should check by Has or GetValue
+func (om *OrderedMap) GetMap(key string) map[string]interface{} {
+	return toMap(om.GetJsonByte(key))
+}
+
+// Get map[string]interface{} value and exists together
+func (om *OrderedMap) GetMapValue(key string) (map[string]interface{}, bool) {
+	jsonByte, ok := om.GetJsonByteValue(key)
+	if !ok {
+		return nil, ok
+	}
+	return toMap(jsonByte), ok
+}
+
+// []byte to map[string]interface{}
+func toMap(jsonByte []byte) map[string]interface{} {
+	var origin map[string]interface{}
+	err := json.Unmarshal(jsonByte, &origin)
+	if err != nil {
+		fmt.Println(err)
+		return origin
+	}
+	return origin
+}
+
 // deletes the element with the specified key (m[key]) from the map. If there is no such element, this is a no-op.
 func (om *OrderedMap) Delete(key string) (value interface{}, ok bool) {
 	value, ok = om.m[key]
